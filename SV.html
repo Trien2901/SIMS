@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản lý Sinh viên - Mẫu Figma</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .role-wrapper, #login-view { display: none; }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translate(-50%, 40px);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, 0);
+        }
+    </style>
+</head>
+<body onload="initApp()">
+
+    <div id="login-view" class="flex items-center justify-center min-h-screen bg-gray-100">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold text-center text-violet-700 mb-6">Đăng nhập</h1>
+            <input type="text" id="username" placeholder="Mã số (admin/SV001)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500">
+            <input type="password" id="password" placeholder="Mật khẩu" class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500">
+            <button onclick="login()" class="w-full bg-violet-600 text-white p-3 rounded-lg font-semibold hover:bg-violet-700 transition duration-300">Đăng nhập</button>
+        </div>
+    </div>
+
+    <div id="student-wrapper" class="role-wrapper"></div>
+    
+    <div id="admin-wrapper" class="role-wrapper">
+        <h1 class="text-3xl font-bold p-6">Trang Quản Trị Viên (Chưa phát triển)</h1>
+        <button onclick="logout()" class="ml-6 bg-gray-500 text-white p-2 rounded-lg">Đăng xuất</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // MOCK DATA: Dữ liệu mẫu
+        let MOCK_DATA = {
+            roles: { 'admin': 'admin', 'SV001': '123456' },
+            students: { 
+                'SV001': { 
+                    name: 'Nguyễn Văn An',
+                    major: 'Công nghệ thông tin',
+                    gpa: 3.55, 
+                    credits: 80,
+                    dob: '05/10/2003',
+                    phone: '0909123456',
+                    email: 'an.nv@sism.edu.vn',
+                    address: '123 Đường ABC, Phường 1, Quận 1, TP.HCM',
+                    studentId: 'SV001',
+                    idCard: '012345678910',
+                    ethnicity: 'Kinh',
+                    religion: 'Không',
+                    country: 'Việt Nam',
+                    city: 'TP. Hồ Chí Minh',
+                    studyStatus: 'Đang học',
+                    course: 'Đại học chính quy K45',
+                    schoolYear: '2021-2025',
+                    studentClass: 'Công nghệ thông tin 45A',
+                    relative: {
+                        name: 'Nguyễn Văn Ba',
+                        phone: '0908654321',
+                        address: '123 Đường ABC, Phường 1, Quận 1, TP.HCM'
+                    }
+                } 
+            },
+            studentSchedule: [
+                { subject: 'Giáo dục thể chất', day: 'Thứ 2', time: '15:00 - 17:00', room: 'Sân vận động', lecturer: 'Vũ Văn C', dayIndex: 1 },
+                { subject: 'Lập trình C++', day: 'Thứ 2', time: '13:00 - 15:00', room: 'C2-101', lecturer: 'Trần Thị E', dayIndex: 1 },
+                { subject: 'Giải tích 1', day: 'Thứ 2', time: '9:00 - 11:00', room: 'A2-301', lecturer: 'Lê Văn F', dayIndex: 1 },
+                { subject: 'Triết học Mác-Lênin', day: 'Thứ 2', time: '7:00 - 9:00', room: 'A3-305', lecturer: 'Lê Thị Hà', dayIndex: 1 },
+                { subject: 'Đại số tuyến tính', day: 'Thứ 3', time: '14:00 - 16:00', room: 'A1-203', lecturer: 'Nguyễn Thị B', dayIndex: 2 },
+                { subject: 'Kiến trúc máy tính', day: 'Thứ 3', time: '9:00 - 12:00', room: 'D1-405', lecturer: 'Hoàng Văn G', dayIndex: 2 },
+                { subject: 'Cấu trúc dữ liệu và giải thuật', day: 'Thứ 3', time: '7:00 - 9:00', room: 'A1-203', lecturer: 'Phạm Thị Dung', dayIndex: 2 },
+                { subject: 'Mạng máy tính', day: 'Thứ 4', time: '13:00 - 16:00', room: 'B2-108', lecturer: 'Vũ Đình H', dayIndex: 3 },
+                { subject: 'Hệ điều hành', day: 'Thứ 4', time: '8:00 - 11:00', room: 'B1-202', lecturer: 'Phan Anh I', dayIndex: 3 },
+                { subject: 'Xác suất thống kê', day: 'Thứ 5', time: '13:00 - 15:00', room: 'A5-101', lecturer: 'Đỗ Thị K', dayIndex: 4 },
+                { subject: 'Lập trình Web cơ bản', day: 'Thứ 5', time: '7:00 - 10:00', room: 'B1-105', lecturer: 'Trần Văn Mạnh', dayIndex: 4 },
+                { subject: 'Tiếng Anh chuyên ngành', day: 'Thứ 5', time: '10:00 - 12:00', room: 'C2-101', lecturer: 'Lê Thị D', dayIndex: 4 },
+                { subject: 'Đồ án môn học', day: 'Thứ 6', time: '13:00 - 17:00', room: 'Xưởng-TH1', lecturer: 'Ngô Bảo L', dayIndex: 5 },
+                { subject: 'Cơ sở dữ liệu', day: 'Thứ 6', time: '9:00 - 12:00', room: 'B1-105', lecturer: 'Trần Văn Mạnh', dayIndex: 5 },
+                { subject: 'Kinh tế chính trị Mác-Lênin', day: 'Thứ 6', time: '7:00 - 9:00', room: 'A3-306', lecturer: 'Nguyễn Văn M', dayIndex: 5 },
+                { subject: 'Kỹ năng mềm', day: 'Thứ 7', time: '8:00 - 11:00', room: 'Hội trường Lớn', lecturer: 'Chuyên gia N', dayIndex: 6 },
+            ],
+            tuition: { 'SV001': { due: '0 VNĐ', paid: '10,000,000 VNĐ', status: 'Đã hoàn thành' } },
+            scores: {
+                'HK1_2023': [
+                    { subject: 'Toán cao cấp', score: 8.5, credits: 3 }, 
+                    { subject: 'Vật lý đại cương', score: 7.0, credits: 3 },
+                    { subject: 'Giáo dục quốc phòng', score: 9.5, credits: 2 },
+                ],
+                'HK2_2023': [
+                    { subject: 'Lập trình C', score: 9.0, credits: 4 }, 
+                    { subject: 'Giải tích 1', score: 7.5, credits: 3 },
+                    { subject: 'Kinh tế chính trị', score: 6.2, credits: 2 },
+                    { subject: 'Tư tưởng Hồ Chí Minh', score: 3.5, credits: 3 },
+                ],
+            },
+            availableClasses: [
+                { id: 'CL001', subject: 'Cấu trúc dữ liệu và giải thuật', credits: 3, lecturer: 'Phạm Thị Dung', day: 'Thứ 3', time: '9:00 - 11:00', room: 'A1-203', registered: 28, max: 40 },
+                { id: 'CL002', subject: 'Lập trình Web nâng cao', credits: 3, lecturer: 'Trần Văn Mạnh', day: 'Thứ 5', time: '13:00 - 15:00', room: 'B1-105', registered: 35, max: 40 },
+                { id: 'CL003', subject: 'Kinh tế học đại cương', credits: 2, lecturer: 'Hoàng Văn Em', day: 'Thứ 2', time: '13:00 - 15:00', room: 'C2-201', registered: 40, max: 40 }, 
+                { id: 'CL004', subject: 'Triết học Mác-Lênin', credits: 3, lecturer: 'Lê Thị Hà', day: 'Thứ 6', time: '7:00 - 9:00', room: 'A3-305', registered: 15, max: 40 },
+                { id: 'CL005', subject: 'Lập trình Python cơ bản', credits: 4, lecturer: 'Nguyễn Thị Hoa', day: 'Thứ 4', time: '15:00 - 18:00', room: 'D1-401', registered: 10, max: 30 },
+            ],
+            studentRegisteredClasses: ['CL001', 'CL004']
+        };
+
+        let currentRole = null;
+        let currentUserId = null;
+
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show';
+            toast.style.backgroundColor = isSuccess ? '#10B981' : '#EF4444';
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function switchRole(role, userId) {
+            currentRole = role;
+            currentUserId = userId;
+            document.getElementById('login-view').style.display = 'none';
+            document.querySelectorAll('.role-wrapper').forEach(el => el.style.display = 'none');
+            document.getElementById(`${role}-wrapper`).style.display = 'block';
+
+            if (role === 'student') {
+                setupStudentUI();
+                switchContent('student-wrapper', 'student-dashboard');
+            }
+        }
+
+        function login() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            if (MOCK_DATA.roles[username] === password) {
+                if (username === 'admin') {
+                    switchRole('admin', username);
+                } else if (username.startsWith('SV')) {
+                    switchRole('student', username);
+                } else {
+                    showToast('Vai trò không xác định.', false);
+                }
+            } else {
+                showToast('Sai tên đăng nhập hoặc mật khẩu.', false);
+            }
+        }
+
+        function logout() {
+            currentRole = null;
+            currentUserId = null;
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('login-view').style.display = 'flex';
+            document.querySelectorAll('.role-wrapper').forEach(el => el.style.display = 'none');
+        }
+
+        function initApp() {
+            document.getElementById('login-view').style.display = 'flex';
+        }
+
+        function switchContent(wrapperId, targetId) {
+            const wrapper = document.getElementById(wrapperId);
+            wrapper.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            const targetSection = wrapper.querySelector(`#${targetId}`);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // [CẬP NHẬT] Logic highlight cho header mới
+            wrapper.querySelectorAll('#student-main-nav a').forEach(link => {
+                if (link.dataset.target === targetId) {
+                    // Active classes
+                    link.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'border-transparent');
+                    link.classList.add('text-violet-600', 'border-violet-600', 'font-semibold');
+                } else {
+                    // Inactive classes
+                    link.classList.remove('text-violet-600', 'border-violet-600', 'font-semibold');
+                    link.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300', 'border-transparent');
+                }
+            });
+
+            if (targetId === 'student-dashboard') {
+                renderStudentDashboard(currentUserId);
+            }
+            if (targetId === 'student-scores') {
+                renderScoresUI(currentUserId);
+            }
+        }
+
+        window.handleClassAction = (classId, action) => {
+            const availableClasses = MOCK_DATA.availableClasses;
+            const registeredClassesId = MOCK_DATA.studentRegisteredClasses;
+            const classToUpdate = availableClasses.find(c => c.id === classId);
+
+            if (!classToUpdate) return;
+            
+            if (action === 'register') {
+                if (classToUpdate.registered >= classToUpdate.max) {
+                    showToast('Lớp đã đầy!', false);
+                    return;
+                }
+                if (registeredClassesId.includes(classId)) return;
+                
+                registeredClassesId.push(classId);
+                classToUpdate.registered += 1;
+                showToast(`Đăng ký môn ${classToUpdate.subject} thành công!`, true);
+            } else if (action === 'unregister') {
+                const index = registeredClassesId.indexOf(classId);
+                if (index > -1) {
+                    registeredClassesId.splice(index, 1);
+                    classToUpdate.registered -= 1;
+                    showToast(`Hủy đăng ký môn ${classToUpdate.subject} thành công!`, false);
+                }
+            }
+            
+            renderRegistrationData();
+        };
+        
+        function renderSchedule() {
+            const scheduleData = MOCK_DATA.studentSchedule.sort((a, b) => {
+                if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+                return a.time.localeCompare(b.time);
+            });
+
+            const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+            const scheduleByDay = days.map(day => ({
+                day: day,
+                classes: scheduleData.filter(c => c.day === day)
+            }));
+
+            const scheduleHTML = scheduleByDay.map(dayEntry => {
+                if (dayEntry.classes.length === 0) {
+                    return `
+                        <div class="p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+                            <h3 class="text-xl font-bold text-gray-800 mb-2 border-b pb-2">${dayEntry.day}</h3>
+                            <p class="text-gray-500 italic">Không có lịch học.</p>
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="p-4 bg-white rounded-xl shadow-lg border-t-4 border-violet-500">
+                        <h3 class="text-xl font-bold text-gray-800 mb-3 border-b pb-2 text-violet-600">${dayEntry.day}</h3>
+                        <div class="space-y-4">
+                            ${dayEntry.classes.map(c => `
+                                <div class="bg-gray-50 p-3 rounded-lg border-l-4 border-green-500 flex justify-between items-start">
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${c.subject}</p>
+                                        <p class="text-sm text-gray-600">${c.lecturer}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="font-bold text-green-700">${c.time}</p>
+                                        <p class="text-sm font-semibold text-red-600">${c.room}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `<div id="student-schedule" class="content-section"><h2 class="text-3xl font-bold text-gray-900 mb-6">Lịch học Tuần này</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">${scheduleHTML}</div></div>`;
+        }
+        
+        function convertScore(score10) {
+            if (score10 >= 8.5) return { score4: 4.0, letter: 'A' };
+            if (score10 >= 7.0) return { score4: 3.0, letter: 'B' };
+            if (score10 >= 5.5) return { score4: 2.0, letter: 'C' };
+            if (score10 >= 4.0) return { score4: 1.0, letter: 'D' };
+            return { score4: 0.0, letter: 'F' };
+        }
+
+        function setupStudentUI() {
+            const wrapper = document.getElementById('student-wrapper');
+            const student = MOCK_DATA.students[currentUserId];
+            const tpl = {};
+
+            const createInfoField = (label, value) => `
+                <div>
+                    <label class="block text-sm font-medium text-gray-500">${label}</label>
+                    <div class="mt-1 p-2 w-full bg-gray-100 border border-gray-200 rounded-md text-gray-800">${value}</div>
+                </div>`;
+            
+            const createInfoFieldSelect = (label, value) => `
+                 <div>
+                    <label class="block text-sm font-medium text-gray-500">${label}</label>
+                    <div class="mt-1 p-2 w-full bg-gray-100 border border-gray-200 rounded-md text-gray-800 flex justify-between items-center">
+                        <span>${value}</span>
+                        <svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </div>
+                </div>`;
+
+            // [CẬP NHẬT] Header mới theo hình ảnh
+            tpl.header = `
+                <header class="bg-white shadow-sm sticky top-0 z-50">
+                    <div class="bg-slate-800 text-white">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div class="flex justify-between items-center h-14">
+                                <div class="flex items-center space-x-4">
+                                    <div class="bg-white rounded-md p-1">
+                                         <svg class="h-6 w-6 text-violet-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0l-2.072-1.036A48.222 48.222 0 0112 4.5c4.756 0 9.227 1.152 13.21 3.162l-2.072 1.036m-15.482 0A50.57 50.57 0 0112 13.489a50.57 50.57 0 017.74-3.342M12 21.75v-5.75m0 0a5.065 5.065 0 00-4.922 5.055 5.065 5.065 0 004.922-5.055z" />
+                                        </svg>
+                                    </div>
+                                    <span class="font-semibold text-lg">Hệ thống Quản lý Sinh viên</span>
+                                </div>
+
+                                <div class="flex items-center space-x-6">
+                                    <button class="relative hover:bg-slate-700 p-2 rounded-full">
+                                       <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
+                                    </button>
+                                    <button class="relative hover:bg-slate-700 p-2 rounded-full">
+                                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+                                        <span class="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-800"></span>
+                                    </button>
+                                    <div class="flex items-center space-x-2 cursor-pointer">
+                                         <img class="h-9 w-9 rounded-full" src="https://i.pravatar.cc/150?u=${student.studentId}" alt="Avatar">
+                                        <span>${student.name}</span>
+                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+                                    </div>
+                                     <button onclick="logout()" class="text-sm bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 transition">
+                                        Đăng xuất
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div id="student-main-nav" class="flex space-x-4 h-14 items-center">
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-dashboard">Dashboard</a>
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-info">Thông tin cá nhân</a>
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-schedule">Lịch học</a>
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-scores">Xem điểm</a>
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-tuition">Học phí</a>
+                            <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition duration-150 ease-in-out" data-target="student-registration">Đăng ký học phần</a>
+                        </div>
+                    </nav>
+                </header>
+            `;
+
+            tpl.summaryWidgets = `
+                <div id="student-summary-widgets" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-violet-500 hover:shadow-xl transition duration-300 cursor-pointer"><div class="flex items-center justify-between"><h3 class="text-gray-600 font-semibold">GPA Tích lũy</h3><svg class="h-8 w-8 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div><p id="cumulative-gpa" class="text-4xl font-extrabold text-violet-700 mt-2">${student.gpa}</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-green-500 hover:shadow-xl transition duration-300 cursor-pointer"><div class="flex items-center justify-between"><h3 class="text-gray-600 font-semibold">Tín chỉ Tích lũy</h3><svg class="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div><p id="cumulative-credits" class="text-4xl font-extrabold text-green-700 mt-2">${student.credits}</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-amber-500 hover:shadow-xl transition duration-300 cursor-pointer"><div class="flex items-center justify-between"><h3 class="text-gray-600 font-semibold">Học phí phải đóng</h3><svg class="h-8 w-8 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m0 0l-3 3m3-3h1a2 2 0 002-2v-4a2 2 0 00-2-2H5m0 0v-4"/></svg></div><p class="text-4xl font-extrabold text-amber-700 mt-2">${MOCK_DATA.tuition.SV001.due}</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500 hover:shadow-xl transition duration-300 cursor-pointer"><div class="flex items-center justify-between"><h3 class="text-gray-600 font-semibold">Điểm Rèn Luyện</h3><svg class="h-8 w-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v2m-3-1h6m-3-1a2 2 0 01-2-2V9a2 2 0 012-2h4a2 2 0 012 2v6a2 2 0 01-2 2H8z"/></svg></div><p class="text-4xl font-extrabold text-blue-700 mt-2">90</p></div>
+                </div>
+            `;
+            
+            tpl.dashboard = `
+                <div id="student-dashboard" class="content-section">
+                    <h1 class="text-3xl font-bold text-gray-900 mb-6">Xin chào, ${student.name}!</h1>
+                    ${tpl.summaryWidgets}
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="space-y-6 lg:col-span-1">
+                            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-red-500">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <svg class="h-6 w-6 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882l-7 3.5v7l7 3.5 7-3.5v-7l-7-3.5zM12 18v-4m0-4h.01"/></svg>
+                                    Thông báo Tổng
+                                </h2>
+                                <ul class="list-disc list-inside space-y-2 text-sm text-gray-700">
+                                    <li class="hover:text-violet-600 cursor-pointer">Deadline đăng ký học phần: 15/11/2025.</li>
+                                    <li class="hover:text-violet-600 cursor-pointer">Lịch thi giữa kỳ đã được cập nhật.</li>
+                                    <li class="hover:text-violet-600 cursor-pointer">Mở đăng ký hoạt động ngoại khóa.</li>
+                                </ul>
+                                <a href="#" class="mt-4 inline-block text-violet-600 text-sm font-semibold hover:underline">Xem tất cả →</a>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl shadow-lg border-t-4 border-blue-500">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                                    <svg class="h-6 w-6 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                                    Về Trường Đại học
+                                </h2>
+                                <p class="text-sm text-gray-700">Chào mừng bạn đến với Trường Đại học [Tên Trường]. Trường cam kết cung cấp môi trường học tập tiên tiến, khuyến khích sáng tạo và nghiên cứu khoa học. Hãy khám phá các nguồn lực hỗ trợ sinh viên tại đây!</p>
+                                <a href="#" class="mt-4 inline-block text-blue-600 text-sm font-semibold hover:underline">Tìm hiểu thêm →</a>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-2 space-y-6">
+                            <div class="bg-white p-6 rounded-xl shadow-lg">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4">Biến động GPA theo Học kỳ</h2>
+                                <canvas id="gpaChart"></canvas>
+                            </div>
+                            
+                            <div class="bg-white p-6 rounded-xl shadow-lg">
+                                <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Lịch học trong 7 ngày tới</h2>
+                                <div id="upcoming-schedule" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    ${MOCK_DATA.studentSchedule.slice(0, 4).map(s => `
+                                        <div class="border-l-4 border-violet-500 p-3 bg-violet-50 rounded-md">
+                                            <p class="font-semibold text-gray-800">${s.subject}</p>
+                                            <p class="text-sm text-gray-600">${s.day}, ${s.time} | Phòng ${s.room}</p>
+                                            <p class="text-xs text-violet-600">GV: ${s.lecturer}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            tpl.info = `
+                <div id="student-info" class="content-section">
+                    <div class="bg-white p-8 rounded-xl shadow-lg">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Thông tin Sinh viên</h2>
+                        
+                        <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Thông tin Khóa học & Liên lạc</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createInfoFieldSelect('Tình trạng học', student.studyStatus)}
+                                ${createInfoField('Khóa học', student.course)}
+                                ${createInfoField('Niên khóa', student.schoolYear)}
+                                ${createInfoField('Lớp sinh viên', student.studentClass)}
+                                ${createInfoField('Số điện thoại', student.phone)}
+                                ${createInfoField('Email', student.email)}
+                                <div class="md:col-span-2">${createInfoField('Địa chỉ thường trú', student.address)}</div>
+                            </div>
+                        </div>
+
+                         <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Thông tin Cá nhân</h3>
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createInfoField('Mã Sinh viên', student.studentId)}
+                                ${createInfoField('Họ và tên', student.name)}
+                                ${createInfoField('Ngày sinh', student.dob)}
+                                ${createInfoField('Số CMND/CCCD', student.idCard)}
+                                ${createInfoField('Dân tộc', student.ethnicity)}
+                                ${createInfoField('Tôn giáo', student.religion)}
+                                ${createInfoField('Quốc gia', student.country)}
+                                ${createInfoField('Tỉnh/Thành phố', student.city)}
+                            </div>
+                        </div>
+
+                        <div>
+                             <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Thông tin Người thân</h3>
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createInfoField('Họ tên người thân', student.relative.name)}
+                                ${createInfoField('SĐT người thân', student.relative.phone)}
+                                <div class="md:col-span-2">${createInfoField('Địa chỉ người thân', student.relative.address)}</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 text-left">
+                            <button class="bg-violet-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-violet-700 transition duration-300">Chỉnh sửa</button>
+                        </div>
+                    </div>
+                </div>`;
+
+            tpl.schedule = renderSchedule();
+            
+            tpl.scores = `
+                <div id="student-scores" class="content-section">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Bảng điểm</h2>
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <nav id="semester-tabs" class="flex border-b mb-4"></nav>
+                        <div id="scores-table-container"></div>
+                    </div>
+                </div>`;
+            
+            tpl.tuition = `<div id="student-tuition" class="content-section bg-white p-6 rounded-xl shadow-lg"><h2 class="text-2xl font-bold text-gray-800 mb-4">Thông tin học phí</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="bg-white p-4 rounded-xl border border-green-200"><h3 class="text-gray-500">Phải đóng</h3><p class="text-xl font-bold">${MOCK_DATA.tuition.SV001.due}</p></div><div class="bg-white p-4 rounded-xl border border-green-200"><h3 class="text-gray-500">Đã đóng</h3><p class="text-xl font-bold">${MOCK_DATA.tuition.SV001.paid}</p></div><div class="bg-white p-4 rounded-xl border border-green-200"><h3 class="text-gray-500">Trạng thái</h3><p class="text-xl font-bold text-green-600">${MOCK_DATA.tuition.SV001.status}</p></div></div><h3 class="text-xl font-bold text-gray-800 mb-2">Lịch sử giao dịch</h3><div class="overflow-x-auto"><table class="w-full text-left"><thead><tr class="bg-gray-100"><th class="p-3">Học kỳ</th><th class="p-3">Số tiền</th><th class="p-3">Ngày đóng</th><th class="p-3">Trạng thái</th></tr></thead><tbody><tr class="border-b"><td class="p-3">HK1 (2023)</td><td class="p-3">5,000,000 VNĐ</td><td class="p-3">20/08/2023</td><td class="p-3 text-green-600 font-semibold">Hoàn thành</td></tr><tr class="border-b"><td class="p-3">HK2 (2023)</td><td class="p-3">5,000,000 VNĐ</td><td class="p-3">15/01/2024</td><td class="p-3 text-green-600 font-semibold">Hoàn thành</td></tr></tbody></table></div></div>`;
+
+            tpl.registration = `
+                <div id="student-registration" class="content-section">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-6">Đăng ký Học phần</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-violet-50 rounded-xl border border-violet-200 shadow-md">
+                        <div class="text-center"><p class="text-sm font-medium text-gray-600">Tổng Tín chỉ Đăng ký</p><p id="reg-total-credits" class="text-2xl font-bold text-violet-700 mt-1">0</p></div>
+                        <div class="text-center"><p class="text-sm font-medium text-gray-600">Số môn đã đăng ký</p><p id="reg-total-classes" class="text-2xl font-bold text-violet-700 mt-1">0</p></div>
+                        <div class="text-center"><p class="text-sm font-medium text-gray-600">Thời hạn</p><p class="text-xl font-bold text-red-600 mt-1">Còn 5 ngày</p></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">Danh sách Học phần có thể đăng ký</h3>
+                        <div class="flex flex-col md:flex-row gap-4 mb-4">
+                            <input type="text" id="search-class" placeholder="Tìm kiếm theo Tên môn học..." class="p-2 border border-gray-300 rounded-lg flex-grow focus:ring-violet-500 focus:border-violet-500">
+                            <select class="p-2 border border-gray-300 rounded-lg"><option>Lọc theo Thứ</option><option>Thứ 2</option><option>Thứ 3</option><option>Thứ 4</option></select>
+                        </div>
+                        <div id="available-classes-table-container" class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead><tr class="bg-gray-100"><th class="p-3 text-sm font-semibold">Môn học</th><th class="p-3 text-sm font-semibold">Giảng viên</th><th class="p-3 text-sm font-semibold">Lịch học</th><th class="p-3 text-sm font-semibold">Số lượng</th><th class="p-3 text-sm font-semibold">Hành động</th></tr></thead>
+                                <tbody id="available-classes-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            wrapper.innerHTML = `<div class="bg-gray-100 min-h-screen">${tpl.header}<main id="student-content" class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">${tpl.dashboard}${tpl.info}${tpl.schedule}${tpl.scores}${tpl.tuition}${tpl.registration}</main></div>`;
+
+            wrapper.querySelectorAll('#student-main-nav a').forEach(link => { 
+                link.addEventListener('click', e => { 
+                    e.preventDefault(); 
+                    switchContent('student-wrapper', e.currentTarget.dataset.target); 
+                }); 
+            });
+
+            renderStudentDashboard(currentUserId);
+            renderScoresUI(currentUserId);
+            renderRegistrationData();
+        }
+
+
+        function renderRegistrationData() {
+            const wrapper = document.getElementById('student-wrapper');
+            if (!wrapper) return;
+            const tableBody = wrapper.querySelector('#available-classes-body');
+            if (!tableBody) return;
+
+            const availableClasses = MOCK_DATA.availableClasses;
+            const registeredClassesId = MOCK_DATA.studentRegisteredClasses;
+
+            const totalCredits = availableClasses
+                .filter(cls => registeredClassesId.includes(cls.id))
+                .reduce((sum, cls) => sum + cls.credits, 0);
+            wrapper.querySelector('#reg-total-credits').textContent = totalCredits;
+            wrapper.querySelector('#reg-total-classes').textContent = registeredClassesId.length;
+
+            tableBody.innerHTML = availableClasses.map(cls => {
+                const isRegistered = registeredClassesId.includes(cls.id);
+                const isFull = cls.registered >= cls.max;
+                const remaining = cls.max - cls.registered;
+                
+                let statusText = `${cls.registered}/${cls.max} (${remaining} chỗ)`;
+                let rowClass = '';
+                let button;
+
+                if (isRegistered) {
+                    rowClass = 'bg-green-50/50';
+                    statusText = `<span class="font-bold text-violet-700">Đã đăng ký</span>`;
+                    button = `<button class="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 transition" onclick="handleClassAction('${cls.id}', 'unregister')">Hủy</button>`;
+                } else if (isFull) {
+                    rowClass = 'bg-gray-100';
+                    statusText = `<span class="font-bold text-red-600">Đã đầy</span>`;
+                    button = `<span class="text-sm text-gray-500">Đã đầy</span>`;
+                } else {
+                    button = `<button class="text-sm bg-violet-600 text-white px-3 py-1 rounded hover:bg-violet-700 transition" onclick="handleClassAction('${cls.id}', 'register')">Đăng ký</button>`;
+                }
+
+                return `
+                    <tr class="${rowClass} border-b last:border-b-0 hover:bg-gray-50 transition duration-150">
+                        <td class="p-3">${cls.subject} (<span class="font-medium">${cls.credits} TC</span>)</td>
+                        <td class="p-3">${cls.lecturer}</td>
+                        <td class="p-3 text-gray-700">${cls.day}, ${cls.time} - <span class="text-violet-600 font-semibold">${cls.room}</span></td>
+                        <td class="p-3 text-sm">${statusText}</td>
+                        <td class="p-3">${button}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        let gpaChart = null;
+        function renderStudentDashboard(studentId) {
+            const ctx = document.getElementById('gpaChart');
+            if (!ctx) return;
+
+            const semesterKeys = Object.keys(MOCK_DATA.scores).sort();
+            const gpaData = semesterKeys.map(key => {
+                const semesterScores = MOCK_DATA.scores[key];
+                const totalPoints = semesterScores.reduce((sum, item) => sum + (convertScore(item.score).score4 * item.credits), 0);
+                const totalCredits = semesterScores.reduce((sum, item) => sum + item.credits, 0);
+                return totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : 0;
+            });
+
+            if (gpaChart) {
+                gpaChart.destroy();
+            }
+
+            gpaChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: semesterKeys,
+                    datasets: [{
+                        label: 'GPA Học kỳ (Hệ 4)',
+                        data: gpaData,
+                        backgroundColor: '#5B21B6',
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, max: 4.0, title: { display: true, text: 'GPA' } } },
+                    plugins: { legend: { display: false }, title: { display: false } }
+                }
+            });
+        }
+        
+        function renderScoresUI(studentId) {
+            const tabsContainer = document.getElementById('semester-tabs');
+            if (!tabsContainer) return;
+            const scoresTableContainer = document.getElementById('scores-table-container');
+            const semesterKeys = Object.keys(MOCK_DATA.scores).sort();
+            let currentSemester = semesterKeys[semesterKeys.length - 1];
+
+            tabsContainer.innerHTML = semesterKeys.map(key => `
+                <button class="px-4 py-2 text-sm font-medium border-b-2 hover:border-violet-500 transition duration-150 ${key === currentSemester ? 'border-violet-600 text-violet-600' : 'border-transparent text-gray-500'}" data-semester="${key}">${key}</button>
+            `).join('');
+
+            const renderTable = (semester) => {
+                const scores = MOCK_DATA.scores[semester];
+                
+                const totalPoints4 = scores.reduce((sum, item) => sum + (convertScore(item.score).score4 * item.credits), 0);
+                const totalCredits = scores.reduce((sum, item) => sum + item.credits, 0);
+                const gpa4 = totalCredits > 0 ? (totalPoints4 / totalCredits).toFixed(2) : '0.00';
+                
+                let cumulativePoints4 = 0;
+                let cumulativeCredits = 0;
+                Object.values(MOCK_DATA.scores).forEach(sem => {
+                    sem.forEach(item => {
+                        cumulativePoints4 += convertScore(item.score).score4 * item.credits;
+                        cumulativeCredits += item.credits;
+                    });
+                });
+                const cumulativeGpa4 = cumulativeCredits > 0 ? (cumulativePoints4 / cumulativeCredits).toFixed(2) : '0.00';
+
+                const tableContent = `
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="p-5 rounded-xl bg-violet-100/70 border border-violet-200 text-center">
+                            <p class="text-sm text-gray-700 font-medium">GPA Học kỳ (Hệ 4)</p>
+                            <p class="font-extrabold text-3xl text-violet-700 mt-1">${gpa4}</p>
+                        </div>
+                         <div class="p-5 rounded-xl bg-blue-100/70 border border-blue-200 text-center">
+                            <p class="text-sm text-gray-700 font-medium">GPA Tích lũy (Hệ 4)</p>
+                            <p class="font-extrabold text-3xl text-blue-700 mt-1">${cumulativeGpa4}</p>
+                        </div>
+                        <div class="p-5 rounded-xl bg-green-100/70 border border-green-200 text-center">
+                            <p class="text-sm text-gray-700 font-medium">Tín chỉ đạt được</p>
+                            <p class="font-extrabold text-3xl text-green-700 mt-1">${totalCredits}</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="p-3">Môn học</th>
+                                    <th class="p-3 text-center">Tín chỉ</th>
+                                    <th class="p-3 text-center">Điểm hệ 10</th>
+                                    <th class="p-3 text-center">Điểm hệ 4</th>
+                                    <th class="p-3 text-center">Điểm chữ</th>
+                                    <th class="p-3">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${scores.map(s => {
+                                    const converted = convertScore(s.score);
+                                    const statusClass = s.score >= 4.0 ? 'text-green-600' : 'text-red-600';
+                                    return `<tr class="border-b hover:bg-gray-50">
+                                        <td class="p-3">${s.subject}</td>
+                                        <td class="p-3 text-center">${s.credits}</td>
+                                        <td class="p-3 text-center font-bold text-gray-800">${s.score.toFixed(1)}</td>
+                                        <td class="p-3 text-center font-bold text-violet-700">${converted.score4.toFixed(1)}</td>
+                                        <td class="p-3 text-center font-bold text-blue-700">${converted.letter}</td>
+                                        <td class="p-3 font-semibold ${statusClass}">${s.score >= 4.0 ? 'Đạt' : 'Chưa đạt'}</td>
+                                    </tr>`
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                scoresTableContainer.innerHTML = tableContent;
+            };
+
+            tabsContainer.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    const semester = e.target.dataset.semester;
+                    currentSemester = semester;
+                    tabsContainer.querySelectorAll('button').forEach(btn => {
+                        btn.classList.remove('border-violet-600', 'text-violet-600');
+                        btn.classList.add('border-transparent', 'text-gray-500');
+                    });
+                    e.target.classList.remove('border-transparent', 'text-gray-500');
+                    e.target.classList.add('border-violet-600', 'text-violet-600');
+                    renderTable(semester);
+                }
+            });
+
+            if (currentSemester) {
+                renderTable(currentSemester);
+            }
+        }
+
+    </script>
+</body>
+</html>

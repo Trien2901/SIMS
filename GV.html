@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng thông tin Giảng viên</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        #lecturer-view, #login-view { display: none; }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translate(-50%, 40px); padding: 12px 24px;
+            border-radius: 8px; color: white; z-index: 1050;
+            opacity: 0; visibility: hidden;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+        }
+        .toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+    </style>
+</head>
+<body onload="initApp()">
+
+    <div id="login-view" class="flex items-center justify-center min-h-screen bg-gray-100">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold text-center text-violet-700 mb-6">Đăng nhập Giảng viên</h1>
+            <input type="text" id="username" placeholder="Mã giảng viên (GV001)" class="w-full p-3 mb-4 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500">
+            <input type="password" id="password" placeholder="Mật khẩu" class="w-full p-3 mb-6 border border-gray-300 rounded-lg focus:ring-violet-500 focus:border-violet-500">
+            <button onclick="login()" class="w-full bg-violet-600 text-white p-3 rounded-lg font-semibold hover:bg-violet-700 transition duration-300">Đăng nhập</button>
+        </div>
+    </div>
+
+    <div id="lecturer-view"></div>
+    
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // --- MOCK DATA (EXPANDED) ---
+        let MOCK_DATA = {
+            roles: { 
+                'GV001': '123456', 
+                'GV002': '123456'
+            },
+            students: { 
+                'SV001': { name: 'Nguyễn Văn An', studentId: 'SV001', studentClass: 'CNTT K45A' },
+                'SV002': { name: 'Trần Thị Bích', studentId: 'SV002', studentClass: 'QTKD K45' },
+                'SV003': { name: 'Lê Văn Cường', studentId: 'SV003', studentClass: 'CNTT K45B' },
+                'SV004': { name: 'Phạm Thị Duyên', studentId: 'SV004', studentClass: 'CNTT K45A' },
+                'SV005': { name: 'Hoàng Văn Em', studentId: 'SV005', studentClass: 'CNTT K46A' },
+                'SV006': { name: 'Vũ Thị Gấm', studentId: 'SV006', studentClass: 'CNTT K46B' },
+                'SV007': { name: 'Đỗ Hùng Anh', studentId: 'SV007', studentClass: 'CNTT K45A' },
+            },
+            lecturers: {
+                'GV001': { 
+                    id: 'GV001', 
+                    name: 'Trần Thị E', 
+                    department: 'Khoa Công nghệ thông tin', 
+                    email: 'e.tt@sism.edu.vn', 
+                    phone: '0912345678', 
+                    dob: '10/05/1985', 
+                    address: '456 Đường XYZ, Quận 2, TP.HCM',
+                    idCard: '023456789101',
+                    ethnicity: 'Kinh',
+                    religion: 'Không',
+                    country: 'Việt Nam',
+                    city: 'TP. Hồ Chí Minh',
+                    status: 'Đang công tác',
+                    academicRank: 'Phó Giáo sư',
+                    degree: 'Tiến sĩ',
+                },
+                'GV002': { id: 'GV002', name: 'Nguyễn Minh Hùng', department: 'Khoa Kinh tế', email: 'hung.nm@sism.edu.vn', phone: '0987654321', dob: '20/11/1980', address: '789 Đường LMN, Quận 3, TP.HCM', academicRank: 'Thạc sĩ', degree: 'Thạc sĩ' },
+            },
+            classes: [
+                { id: 'CL001', subject: 'Cấu trúc dữ liệu - Lớp 1', lecturerId: 'GV001', time: 'Thứ 3, 09:00-11:00', dayIndex: 2, room: 'A1-203', students: ['SV001', 'SV003'] },
+                { id: 'CL004', subject: 'Cấu trúc dữ liệu - Lớp 2', lecturerId: 'GV001', time: 'Thứ 4, 09:00-11:00', dayIndex: 3, room: 'A1-204', students: ['SV004', 'SV007'] },
+                { id: 'CL002', subject: 'Lập trình Web nâng cao', lecturerId: 'GV001', time: 'Thứ 5, 13:00-15:00', dayIndex: 4, room: 'B1-105', students: ['SV001', 'SV005'] },
+                { id: 'CL005', subject: 'Lập trình hướng đối tượng - Lớp 1', lecturerId: 'GV001', time: 'Thứ 2, 07:00-09:00', dayIndex: 1, room: 'C1-101', students: ['SV006', 'SV007'] },
+                { id: 'CL006', subject: 'Lập trình hướng đối tượng - Lớp 2', lecturerId: 'GV001', time: 'Thứ 6, 15:00-17:00', dayIndex: 5, room: 'C1-102', students: ['SV003', 'SV004', 'SV005'] },
+                { id: 'CL003', subject: 'Kinh tế vĩ mô', lecturerId: 'GV002', time: 'Thứ 2, 07:00-09:00', dayIndex: 1, room: 'C2-201', students: ['SV002'] },
+            ]
+        };
+
+        let currentUserId = null;
+
+        // --- CORE FUNCTIONS ---
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show';
+            toast.style.backgroundColor = isSuccess ? '#10B981' : '#EF4444';
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function initApp() {
+            document.getElementById('login-view').style.display = 'flex';
+        }
+
+        function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            if (MOCK_DATA.roles[username] === password && username.startsWith('GV')) {
+                currentUserId = username;
+                document.getElementById('login-view').style.display = 'none';
+                setupLecturerUI();
+                document.getElementById('lecturer-view').style.display = 'block';
+                switchContent('lecturer-dashboard');
+                showToast('Đăng nhập thành công!', true);
+            } else {
+                showToast('Sai mã giảng viên hoặc mật khẩu.', false);
+            }
+        }
+
+        function logout() {
+            currentUserId = null;
+            document.getElementById('lecturer-view').style.display = 'none';
+            document.getElementById('login-view').style.display = 'flex';
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function switchContent(targetId) {
+            const wrapper = document.getElementById('lecturer-view');
+            wrapper.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+            const targetSection = wrapper.querySelector(`#${targetId}`);
+            if (targetSection) targetSection.classList.add('active');
+            
+            wrapper.querySelectorAll('header nav a').forEach(link => {
+                const isActive = link.dataset.target === targetId;
+                link.classList.toggle('text-violet-600', isActive);
+                link.classList.toggle('border-violet-600', isActive);
+                link.classList.toggle('font-semibold', isActive);
+                link.classList.toggle('text-gray-500', !isActive);
+                link.classList.toggle('border-transparent', !isActive);
+            });
+        }
+
+        // --- LECTURER UI SETUP ---
+        function setupLecturerUI() {
+            const wrapper = document.getElementById('lecturer-view');
+            const lecturer = MOCK_DATA.lecturers[currentUserId];
+            const lecturerClasses = MOCK_DATA.classes.filter(c => c.lecturerId === currentUserId);
+
+            const tpl = {
+                header: `...`,
+                content: `
+                    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                        <div id="lecturer-dashboard" class="content-section"></div>
+                        <div id="lecturer-classes" class="content-section"></div>
+                        <div id="lecturer-schedule" class="content-section"></div>
+                        <div id="lecturer-profile" class="content-section"></div>
+                        <div id="lecturer-class-details" class="content-section"></div>
+                    </main>`
+            };
+
+            tpl.header = `
+                <header class="bg-white shadow-sm sticky top-0 z-40">
+                     <div class="bg-slate-800 text-white"><div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-14">
+                        <div class="flex items-center space-x-4"><div class="bg-white rounded-md p-1">
+                            <svg class="h-6 w-6 text-violet-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+                        </div><span class="font-semibold text-lg">Cổng thông tin Giảng viên</span></div>
+                        <div class="flex items-center space-x-6"><div class="flex items-center space-x-2"><img class="h-9 w-9 rounded-full" src="https://i.pravatar.cc/150?u=${currentUserId}" alt="Avatar"><span>${lecturer.name}</span></div><button onclick="logout()" class="text-sm bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 transition">Đăng xuất</button></div>
+                    </div></div>
+                     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div id="lecturer-main-nav" class="flex space-x-4 h-14 items-center">
+                        <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-target="lecturer-dashboard">Dashboard</a>
+                        <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-target="lecturer-classes">Lớp học phần</a>
+                        <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-target="lecturer-schedule">Lịch dạy</a>
+                        <a href="#" class="inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium" data-target="lecturer-profile">Thông tin cá nhân</a>
+                    </div></nav>
+                </header>`;
+            
+            wrapper.innerHTML = tpl.header + tpl.content;
+
+            // --- Fill Content Sections ---
+            
+            const totalStudents = lecturerClasses.reduce((sum, cls) => sum + cls.students.length, 0);
+            wrapper.querySelector('#lecturer-dashboard').innerHTML = `
+                <h1 class="text-3xl font-bold text-gray-900 mb-6">Xin chào, ${lecturer.name}!</h1>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-gray-600">Lớp học phụ trách</h3><p class="text-4xl font-bold text-violet-700 mt-2">${lecturerClasses.length}</p></div>
+                    <div class="bg-white p-6 rounded-xl shadow-lg"><h3 class="text-gray-600">Tổng số sinh viên</h3><p class="text-4xl font-bold text-green-700 mt-2">${totalStudents}</p></div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">Các lớp đang dạy</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${lecturerClasses.map(cls => `
+                            <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer" onclick="viewClassDetails('${cls.id}')">
+                                <p class="font-bold text-violet-700">${cls.subject}</p>
+                                <p class="text-sm text-gray-600">${cls.time} - Phòng ${cls.room}</p>
+                                <p class="text-sm text-gray-600">Sĩ số: ${cls.students.length}</p>
+                            </div>
+                        `).join('') || '<p class="text-gray-500">Bạn chưa được phân công lớp nào.</p>'}
+                    </div>
+                </div>`;
+                
+            wrapper.querySelector('#lecturer-classes').innerHTML = `
+                <h2 class="text-3xl font-bold text-gray-900 mb-6">Danh sách Lớp học phần</h2>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <div class="overflow-x-auto"><table class="w-full text-left">
+                       <thead><tr class="bg-gray-100"><th class="p-3">Môn học</th><th class="p-3">Lịch học</th><th class="p-3">Sĩ số</th><th class="p-3">Hành động</th></tr></thead>
+                       <tbody>
+                       ${lecturerClasses.map(c => `
+                            <tr class="border-b">
+                                <td class="p-3 font-semibold">${c.subject}</td>
+                                <td class="p-3">${c.time}</td>
+                                <td class="p-3">${c.students.length}</td>
+                                <td class="p-3"><button onclick="viewClassDetails('${c.id}')" class="text-sm bg-violet-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-violet-700">Quản lý lớp</button></td>
+                            </tr>`).join('')}
+                       </tbody>
+                    </table></div>
+                </div>`;
+            
+            wrapper.querySelector('#lecturer-schedule').innerHTML = renderLecturerSchedule(lecturerClasses);
+
+            wrapper.querySelector('#lecturer-profile').innerHTML = renderProfile(lecturer);
+
+            wrapper.querySelectorAll('header nav a').forEach(link => { link.addEventListener('click', e => { e.preventDefault(); switchContent(e.currentTarget.dataset.target); }); });
+        }
+        
+        // --- Component Render Functions ---
+        function renderLecturerSchedule(classes) {
+            const scheduleByDay = Array.from({ length: 6 }, () => []);
+            classes.forEach(c => {
+                if (c.dayIndex >= 1 && c.dayIndex <= 6) {
+                    scheduleByDay[c.dayIndex - 1].push(c);
+                }
+            });
+            const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+            return `
+                <h2 class="text-3xl font-bold text-gray-900 mb-6">Lịch dạy trong tuần</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${days.map((day, index) => `
+                        <div class="p-4 bg-white rounded-xl shadow-lg border-t-4 border-violet-500 min-h-[200px]">
+                            <h3 class="text-xl font-bold text-gray-800 mb-3 border-b pb-2 text-violet-600">${day}</h3>
+                            <div class="space-y-4">
+                                ${scheduleByDay[index].length > 0 ? scheduleByDay[index].sort((a,b) => a.time.localeCompare(b.time)).map(c => `
+                                    <div class="bg-gray-50 p-3 rounded-lg border-l-4 border-green-500">
+                                        <p class="font-semibold text-gray-800">${c.subject}</p>
+                                        <p class="text-sm font-bold text-green-700">${c.time.split(', ')[1]}</p>
+                                        <p class="text-sm text-red-600 font-semibold">Phòng: ${c.room}</p>
+                                    </div>
+                                `).join('') : '<p class="text-gray-500 italic">Không có lịch dạy.</p>'}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>`;
+        }
+
+        function renderProfile(lecturer, isEditing = false) {
+            const createField = (label, value, fieldId, type = 'text', readOnly = false) => {
+                const readOnlyClass = readOnly ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'border-gray-300';
+                if (isEditing) {
+                    return `<div><label class="block text-sm font-medium text-gray-700">${label}</label><input type="${type}" id="${fieldId}" value="${value || ''}" class="mt-1 p-2 w-full border rounded-md ${readOnlyClass}" ${readOnly ? 'readonly' : ''}></div>`;
+                }
+                return `<div><label class="block text-sm font-medium text-gray-500">${label}</label><div class="mt-1 p-2 w-full bg-gray-100 rounded-md">${value || ''}</div></div>`;
+            };
+            const createSelect = (label, value, fieldId, options) => {
+                 if (isEditing) {
+                    return `<div><label class="block text-sm font-medium text-gray-700">${label}</label>
+                        <select id="${fieldId}" class="mt-1 p-2 w-full border border-gray-300 rounded-md">
+                            ${options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                        </select>
+                    </div>`;
+                }
+                return createField(label, value, fieldId);
+            }
+
+            return `
+                <h2 class="text-3xl font-bold text-gray-900 mb-6">Thông tin cá nhân</h2>
+                <div class="bg-white p-8 rounded-xl shadow-lg">
+                    <div id="profile-fields">
+                        <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Thông tin Cá nhân</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createField('Mã giảng viên', lecturer.id, 'profile-id', 'text', true)}
+                                ${createField('Họ và tên', lecturer.name, 'profile-name')}
+                                ${createField('Ngày sinh', lecturer.dob, 'profile-dob')}
+                                ${createField('Số CMND/CCCD', lecturer.idCard, 'profile-idCard')}
+                                ${createField('Dân tộc', lecturer.ethnicity, 'profile-ethnicity')}
+                                ${createField('Tôn giáo', lecturer.religion, 'profile-religion')}
+                                ${createField('Quốc gia', lecturer.country, 'profile-country')}
+                                ${createField('Tỉnh/Thành phố', lecturer.city, 'profile-city')}
+                            </div>
+                        </div>
+                        <div class="mb-8">
+                            <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Học vấn</h3>
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createSelect('Học hàm', lecturer.academicRank, 'profile-academicRank', ['Giáo sư', 'Phó Giáo sư', 'Không có'])}
+                                ${createSelect('Học vị', lecturer.degree, 'profile-degree', ['Tiến sĩ', 'Thạc sĩ', 'Cử nhân'])}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-violet-700 mb-4 pb-2 border-b border-violet-200">Thông tin Công tác & Liên lạc</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                ${createSelect('Tình trạng công tác', lecturer.status, 'profile-status', ['Đang công tác', 'Đã nghỉ hưu', 'Tạm nghỉ'])}
+                                ${createField('Khoa', lecturer.department, 'profile-department', 'text', true)}
+                                ${createField('Số điện thoại', lecturer.phone, 'profile-phone', 'tel')}
+                                ${createField('Email', lecturer.email, 'profile-email', 'email')}
+                                <div class="md:col-span-2">${createField('Địa chỉ thường trú', lecturer.address, 'profile-address')}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-8 text-left">
+                        ${isEditing 
+                            ? `<button onclick="saveProfile()" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700">Lưu thay đổi</button> <button onclick="toggleEditProfile(false)" class="ml-2 px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy</button>`
+                            : `<button onclick="toggleEditProfile(true)" class="bg-violet-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-violet-700">Chỉnh sửa</button>`
+                        }
+                    </div>
+                </div>`;
+        }
+
+        function toggleEditProfile(isEditing) {
+            const lecturer = MOCK_DATA.lecturers[currentUserId];
+            document.getElementById('lecturer-profile').innerHTML = renderProfile(lecturer, isEditing);
+        }
+
+        function saveProfile() {
+            const lecturer = MOCK_DATA.lecturers[currentUserId];
+            lecturer.name = document.getElementById('profile-name').value;
+            lecturer.dob = document.getElementById('profile-dob').value;
+            lecturer.idCard = document.getElementById('profile-idCard').value;
+            lecturer.ethnicity = document.getElementById('profile-ethnicity').value;
+            lecturer.religion = document.getElementById('profile-religion').value;
+            lecturer.country = document.getElementById('profile-country').value;
+            lecturer.city = document.getElementById('profile-city').value;
+            lecturer.academicRank = document.getElementById('profile-academicRank').value;
+            lecturer.degree = document.getElementById('profile-degree').value;
+            lecturer.status = document.getElementById('profile-status').value;
+            lecturer.phone = document.getElementById('profile-phone').value;
+            lecturer.email = document.getElementById('profile-email').value;
+            lecturer.address = document.getElementById('profile-address').value;
+            
+            showToast('Cập nhật thông tin thành công!', true);
+            toggleEditProfile(false);
+            document.querySelector('#lecturer-view header span').textContent = lecturer.name;
+        }
+        
+        function viewClassDetails(classId) {
+            const wrapper = document.getElementById('lecturer-view');
+            const classInfo = MOCK_DATA.classes.find(c => c.id === classId);
+            const studentsInClass = classInfo.students.map(studentId => MOCK_DATA.students[studentId]);
+            
+            const detailsSection = wrapper.querySelector('#lecturer-class-details');
+            detailsSection.innerHTML = `
+                <button onclick="switchContent('lecturer-classes')" class="mb-6 text-violet-600 font-semibold hover:underline">&larr; Quay lại danh sách lớp</button>
+                <h2 class="text-3xl font-bold text-gray-900">${classInfo.subject}</h2>
+                <p class="text-lg text-gray-600 mb-6">${classInfo.time} - Phòng ${classInfo.room}</p>
+                <div class="bg-white p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Danh sách sinh viên và Nhập điểm</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead><tr class="bg-gray-100"><th class="p-3">Mã SV</th><th class="p-3">Họ tên</th><th class="p-3">Lớp SH</th><th class="p-3 w-1/6">Điểm QT</th><th class="p-3 w-1/6">Điểm Thi</th></tr></thead>
+                            <tbody>
+                            ${studentsInClass.map(s => `
+                                <tr class="border-b">
+                                    <td class="p-3">${s.studentId}</td>
+                                    <td class="p-3">${s.name}</td>
+                                    <td class="p-3">${s.studentClass}</td>
+                                    <td class="p-2"><input type="number" class="w-full p-2 border rounded" placeholder="Điểm..."></td>
+                                    <td class="p-2"><input type="number" class="w-full p-2 border rounded" placeholder="Điểm..."></td>
+                                </tr>
+                            `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-right mt-6">
+                        <button onclick="showToast('Đã lưu điểm thành công!', true)" class="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700">Lưu bảng điểm</button>
+                    </div>
+                </div>`;
+            
+            switchContent('lecturer-class-details');
+        }
+
+    </script>
+</body>
+</html>
